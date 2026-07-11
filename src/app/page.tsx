@@ -1,9 +1,12 @@
 import Gallery from "@/components/Gallery";
 import Hero from "@/components/Hero";
+import ServicesSection from "@/components/ServicesSection";
 import { createClient } from "@/lib/supabase/server";
 import type { SiteContentKey } from "@/lib/supabase/types";
 
 const HERO_NAME_FALLBACK = "Florisia";
+const SERVICES_TEXT_FALLBACK =
+  "Пишіть мені в Instagram або Telegram, щоб замовити букет чи обговорити весільний декор.";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -26,6 +29,11 @@ export default async function Home() {
       <section id="gallery" className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6">
         <Gallery categories={categories ?? []} />
       </section>
+      <ServicesSection
+        text={content.services_text ?? SERVICES_TEXT_FALLBACK}
+        instagramUrl={content.instagram_url ?? null}
+        telegramUrl={content.telegram_url ?? null}
+      />
     </div>
   );
 }
