@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -37,9 +38,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const title = content.hero_name ? `${content.hero_name} — флорист` : TITLE_FALLBACK;
   const description = content.services_text ?? DESCRIPTION_FALLBACK;
-  // hero_photo_url is only set once Session 13 (admin content editor) ships,
-  // so until then fall back to the first real gallery photo instead of a
-  // placeholder OG image.
+  // If the admin hasn't uploaded a hero photo yet via the content editor
+  // (Session 13), fall back to the first real gallery photo.
   const ogImage = content.hero_photo_url ?? firstPhoto?.[0]?.cloudinary_url;
 
   return {
@@ -60,10 +60,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="uk"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
