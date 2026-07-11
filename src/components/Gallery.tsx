@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import EmptyState from "./EmptyState";
 import GalleryTabs from "./GalleryTabs";
 import PhotoCard from "./PhotoCard";
 import PhotoViewer from "./PhotoViewer";
@@ -16,14 +17,19 @@ type PhotosResponse = {
 
 type GalleryProps = {
   categories: Category[];
+  hasAnyPhotos: boolean;
 };
 
 const PAGE_LIMIT = 24;
 
-export default function Gallery({ categories }: GalleryProps) {
+export default function Gallery({ categories, hasAnyPhotos }: GalleryProps) {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
     null,
   );
+
+  if (!hasAnyPhotos) {
+    return <EmptyState message="Фото ще немає — портфоліо скоро з'явиться тут." />;
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -100,15 +106,19 @@ function GalleryGrid({ categoryId }: { categoryId: string | null }) {
 
   return (
     <>
-      <div className="columns-2 gap-3 sm:columns-3">
-        {photos.map((photo, index) => (
-          <PhotoCard
-            key={photo.id}
-            url={photo.url}
-            onClick={() => setViewerIndex(index)}
-          />
-        ))}
-      </div>
+      {photos.length === 0 && !isLoading ? (
+        <EmptyState message="У цьому табі поки немає фото." />
+      ) : (
+        <div className="columns-2 gap-3 sm:columns-3">
+          {photos.map((photo, index) => (
+            <PhotoCard
+              key={photo.id}
+              url={photo.url}
+              onClick={() => setViewerIndex(index)}
+            />
+          ))}
+        </div>
+      )}
       <div ref={sentinelRef} className="h-1" />
 
       {viewerIndex !== null && (
