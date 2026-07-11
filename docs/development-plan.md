@@ -206,7 +206,7 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 ---
 
-## Сесія 7 — Розділ "Послуги / Як замовити"
+## Сесія 7 — Розділ "Послуги / Як замовити" ✅
 
 **Мета:** текстовий блок + кнопки в месенджери, редаговані з адмінки.
 
@@ -216,13 +216,13 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] Текст з `site_content.services_text`, посилання `site_content.instagram_url` / `telegram_url`
-- [ ] Кнопки як прямі `<a href>` (без форми замовлення — свідомо поза MVP)
-- [ ] Перевірка вручну: кнопки відкривають коректні deep-links на мобільному
+- [x] Текст з `site_content.services_text`, посилання `site_content.instagram_url` / `telegram_url`
+- [x] Кнопки як прямі `<a href>` (без форми замовлення — свідомо поза MVP)
+- [x] Перевірка вручну: кнопки відкривають коректні deep-links на мобільному — **частково**: сама умовна логіка (кнопка ховається, якщо `url` не задано; рендериться `<a href>` з правильним значенням, якщо задано) перевірена рендер-тестом (`renderToStaticMarkup`, тимчасовий файл, видалений після прогону — не закомічений), бо `site_content` у реальній БД користувача досі порожній (нуль рядків). Клік по справжньому deep-link на телефоні з реальними Instagram/Telegram акаунтами флориста не перевірявся — нема даних, підтвердити можна буде разом з Сесією 13
 
 ---
 
-## Сесія 8 — Технічні деталі сторінки
+## Сесія 8 — Технічні деталі сторінки ✅
 
 **Мета:** favicon, заголовок вкладки, Open Graph теги.
 
@@ -232,8 +232,8 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] `export const metadata: Metadata` у `layout.tsx` з `openGraph.images`, взяти прев'ю з `site_content.hero_photo_url` або статичного файлу
-- [ ] Перевірка: `https://cards-dev.twitter.com/validator` або ручний перегляд `view-source` — теги присутні
+- [x] `export const metadata: Metadata` у `layout.tsx` з `openGraph.images`, взяти прев'ю з `site_content.hero_photo_url` або статичного файлу — реалізовано як `generateMetadata()` (async), а не статичний `metadata`-об'єкт, бо OG-картинка залежить від даних з Supabase; `favicon.ico` вже існував у `src/app/` зі старту проєкту (default `create-next-app`), окремо не чіпався — потребує заміни на брендований, коли з'явиться реальний лого/фото (поза цією сесією)
+- [x] Перевірка: ручний перегляд — `curl http://localhost:3000/` показав коректні `<title>`, `og:title`, `og:description`, `og:image` (fallback спрацював: `hero_photo_url` у `site_content` порожній, тому підставилось перше реальне фото з `photos`, відсортоване за `order`)
 
 ---
 
@@ -492,3 +492,30 @@ create policy "auth write site_content" on site_content for all using (auth.role
 - Наступний крок — Сесія 7 (розділ "Послуги / Як замовити")
 - У БД тепер є реальні 24 фото + 2 категорії — наступні сесії (7+) можна й варто перевіряти вже на цих даних, а не на порожній БД
 - `PAGE_LIMIT` у `Gallery.tsx` — 24 (production-значення), не чіпати без потреби
+
+### Session 7+8 — 2026-07-11
+
+**Зроблено (Сесія 7):**
+- `src/components/ServicesSection.tsx` (Server Component, без `"use client"` — жодної інтерактивності, окрім звичайних `<a href>`) — текст з `site_content.services_text` (`whitespace-pre-line`, щоб флорист міг форматувати абзацами з адмінки в майбутньому), опційні кнопки-пігулки Instagram/Telegram у стилі решти сайту (`rounded-full`, zinc-палітра з `GalleryTabs`/`Hero`). Кожна кнопка рендериться, лише якщо відповідний `url` не `null` — свідомо, щоб не давати мертвих посилань, поки `site_content` порожній
+- `page.tsx`: додано `SERVICES_TEXT_FALLBACK` (той самий патерн, що `HERO_NAME_FALLBACK` із Сесії 3) і секцію `<ServicesSection>` після галереї
+
+**Зроблено (Сесія 8):**
+- `layout.tsx`: замінено статичний `export const metadata` (плейсхолдер "Create Next App" зі скаффолду) на `export async function generateMetadata()`. Причина переходу на async-варіант: OG-картинка залежить від даних із Supabase (`site_content.hero_photo_url`), а статичний об'єкт `metadata` не може бути асинхронним. Next 16.2.10 підтримує обидва варіанти як завжди (перевірено по `node_modules/next/dist/docs` — жодних розбіжностей зі стандартною документацією Metadata API на відміну від `proxy.ts` із Сесії 1)
+- Якщо `hero_photo_url` не заданий (поточний стан — `site_content` порожній, реальне hero-фото з'явиться лише в Сесії 13), OG-картинка бере перше фото з `photos` за `order` — реальний контент замість вигаданого статичного файлу, якого в репо й не було (тільки дефолтні SVG-плейсхолдери `create-next-app` в `public/`)
+- `favicon.ico` — уже існував у `src/app/` зі старту проєкту (дефолтний з `create-next-app`), план дозволяв "favicon.ico (або icon.png)", тому нічого не додавалось; лишається дефолтна іконка Next.js до появи брендування
+
+**Перевірка (обидві сесії):** `npm run build`/`lint`/`test` чисті (11/11 unit-тестів, як і раніше — нової чистої логіки в цих сесіях немає, тестувати нічого за "Підходом до тестування"). `next dev` + `curl`:
+- `GET /` → `<title>Florisia — флорист</title>`, `og:title`/`og:description`/`og:image` присутні, `og:image` = справжній Cloudinary URL першого фото (fallback відпрацював)
+- HTML секції `#services` містить фолбек-текст і **не** містить жодного `<a>` (обидва `site_content.instagram_url`/`telegram_url` — `null`), тобто порожній стан не показує биті кнопки
+
+Кнопки Instagram/Telegram (умовний рендер, коректний `href`) перевірені окремо: тимчасовий файл `src/components/ServicesSection.tmp.test.tsx` (`renderToStaticMarkup` з мок-пропсами: обидва url `null`; обидва задані; лише Instagram) — 3/3 пройшли, файл видалено одразу після прогону, у git не потрапив. Вставляти тестові `site_content` у реальну БД користувача не став без прямого дозволу (той самий принцип, що в Сесії 3+4 — не чіпати живі дані користувача мовчки).
+
+**Не зроблено / далі:**
+- Реальний клік по Instagram/Telegram deep-link на телефоні — неможливо перевірити, бо в `site_content` немає жодного посилання; підтвердити разом із Сесією 13 (адмінка тексту сайту), коли з'являться справжні `instagram_url`/`telegram_url`
+- `favicon.ico` і OG-картинка (поки що перше фото з галереї) — брендування не запитувалось, лишено як є
+- `Twitter Card` валідатор (`cards-dev.twitter.com`) не запускався — недоступний без публічного URL (сайт ще не задеплоєний, Сесія 15); теги перевірено вручну через `view-source`/`curl`, що відповідає альтернативі з чекбокса плану
+
+**Нотатки для наступної сесії:**
+- Наступний крок — Сесія 9 (Адмінка: автентифікація)
+- Пам'ятати про `src/proxy.ts` замість `src/middleware.ts` (Сесія 1) — Сесія 9 явно чіпає захист `/admin/*` через нього
+- `site_content` у БД користувача досі 0 рядків — Сесії 9-13 (адмінка) це й виправлять; до того часу Hero/ServicesSection/OG-метадані працюють на фолбеках, це очікувано
