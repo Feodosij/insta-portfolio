@@ -1,9 +1,19 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { updateSession } from "@/lib/supabase/middleware";
 
-export function proxy(request: NextRequest) {
-  return updateSession(request);
+export async function proxy(request: NextRequest) {
+  const { response, user } = await updateSession(request);
+
+  const { pathname } = request.nextUrl;
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isLoginRoute = pathname === "/admin/login";
+
+  if (isAdminRoute && !isLoginRoute && !user) {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
+  return response;
 }
 
 export const config = {

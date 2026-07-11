@@ -27,7 +27,11 @@ export async function updateSession(request: NextRequest) {
 
   // Refreshes the auth token if needed — required so Server Components
   // downstream always see a valid session (they cannot write cookies).
-  await supabase.auth.getUser();
+  // The proxy also reuses this result to gate /admin/* without a second
+  // round trip to Supabase.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return { response, user };
 }
