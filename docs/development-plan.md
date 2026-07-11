@@ -140,11 +140,11 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] `Hero.tsx`: full-screen блок, висота через `min-h-[100dvh]` (не `100vh` — інакше в Instagram in-app browser адресний рядок з'їдає екран)
-- [ ] Фонове фото з `site_content.hero_photo_url` (Next.js `<Image fill>`, поки — заглушка/плейсхолдер, реальне завантаження — Сесія 6)
-- [ ] Ім'я по центру з `site_content.hero_name`
-- [ ] Кнопка "Переглянути" — скрол до `#gallery` (`scroll-behavior: smooth` на `html` в `globals.css`, або програмний scrollIntoView)
-- [ ] Перевірка вручну: відкрити на мобільному екрані (DevTools responsive), клік по кнопці плавно скролить вниз
+- [x] `Hero.tsx`: full-screen блок, висота через `min-h-[100dvh]` (не `100vh` — інакше в Instagram in-app browser адресний рядок з'їдає екран)
+- [x] Фонове фото з `site_content.hero_photo_url` (Next.js `<Image fill>`, поки — заглушка/плейсхолдер, реальне завантаження — Сесія 13, не Сесія 6, як написано вище — див. журнал)
+- [x] Ім'я по центру з `site_content.hero_name`
+- [x] Кнопка "Переглянути" — скрол до `#gallery` (`scroll-behavior: smooth` на `html` в `globals.css`)
+- [x] Перевірка вручну: Playwright у мобільному viewport (390×844) — скріншот hero, клік по кнопці, скріншот після — плавний скрол відпрацював, консоль без помилок
 
 ---
 
@@ -160,10 +160,10 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] Masonry-розкладка через CSS columns (`columns-2 sm:columns-3 gap-3`, кожна картка `break-inside-avoid`) — без зайвих бібліотек
-- [ ] `GalleryTabs`: рендер табів з `categories` (сортування за `order`), таб "Всі" завжди першим і активний за замовчуванням
-- [ ] Фільтрація фото за обраним табом через `photo_categories`
-- [ ] Перевірка вручну: перемикання табів міняє набір фото без перезавантаження сторінки
+- [x] Masonry-розкладка через CSS columns (`columns-2 sm:columns-3 gap-3`, кожна картка `break-inside-avoid`) — без зайвих бібліотек
+- [x] `GalleryTabs`: рендер табів з `categories` (сортування за `order`), таб "Всі" завжди першим і активний за замовчуванням
+- [x] Фільтрація фото за обраним табом через `photo_categories` (клієнтський `useMemo` за `categoryIds.includes(activeId)`, дані підвантажені на сервері одним запитом — без окремого API-роуту, бо пагінація/інфініт-скрол з'явиться лише в Сесії 5)
+- [ ] Перевірка вручну: перемикання табів міняє набір фото без перезавантаження сторінки — **не перевірено з реальними даними**, БД порожня (0 категорій, 0 фото); підтверджено лише що таб "Всі" рендериться активним і клік не викликає навігацію/помилок у консолі
 
 Порожні стани (таб без фото, сайт без жодного фото) свідомо винесені окремо в Сесію 14 — тут `Gallery.tsx` поки просто рендерить порожню сітку для табу без фото.
 
@@ -428,3 +428,29 @@ create policy "auth write site_content" on site_content for all using (auth.role
 - Наступний крок — Сесія 3 (Головна сторінка `/`)
 - Пам'ятати про `src/proxy.ts` замість `src/middleware.ts` у всіх майбутніх сесіях, які згадують middleware (зокрема Сесія 9 — захист `/admin/*`)
 - При розширенні `src/lib/supabase/types.ts` новими таблицями не забувати `Relationships: []` на кожній таблиці — інакше `never`-тип на вибіркових `select()`
+
+### Session 3+4 — 2026-07-11
+
+**Розбіжність із текстом плану (без зміни `plan.md`):** Сесія 3 пише "реальне завантаження [hero-фото] — Сесія 6", але Сесія 6 — це повноекранний viewer/свайп, а не адмінка. Реальне завантаження hero-фото з'явиться в Сесії 13 ("Адмінка: керування текстом сайту", там і Cloudinary-флоу для hero). Залишив заглушку (градієнт + без `<Image>`, якщо `hero_photo_url` порожній) до Сесії 13.
+
+**Зроблено (Сесія 3):**
+- `src/components/Hero.tsx` — `min-h-[100dvh]`, градієнтний фон-заглушка (рожевий/zinc для темної теми), опційне фото на весь екран через `next/image fill` якщо `hero_photo_url` заданий, темний оверлей для читабельності тексту, ім'я по центру, кнопка "Переглянути" — звичайний `<a href="#gallery">` (без клієнтського JS, бо `scroll-behavior: smooth` додано на `html` в `globals.css` — обраний варіант із двох, які пропонував план)
+- `page.tsx` тепер `async` Server Component: паралельно (`Promise.all`) тягне `categories`, `photos`, `photo_categories`, `site_content`; `site_content`-рядки згортаються в `Record<SiteContentKey, string>`; `hero_name` має фолбек `"Florisia"`, `hero_photo_url` — `null` (немає плейсхолдер-картинки в `public/`, тож просто немає `<Image>`, лишається градієнт)
+
+**Зроблено (Сесія 4):**
+- `src/components/GalleryTabs.tsx` (client) — таби з `categories`, "Всі" завжди першим/активним за замовчуванням
+- `src/components/PhotoCard.tsx` — **свідомо plain `<img>`, не `next/image`**: masonry через CSS columns вимагає природної (різної) висоти кожного фото, а `next/image` вимагає заздалегідь відомі `width`/`height`; таблиця `photos` їх не зберігає (тільки `cloudinary_url`/`cloudinary_public_id`/`order`). `next/image` тут дав би однакове співвідношення сторін для всіх карток і зламав би саму ідею masonry. `eslint-disable-next-line @next/next/no-img-element` з коментарем-обґрунтуванням
+- `src/components/Gallery.tsx` (client) — тримає `activeCategoryId` в `useState`, фільтрація через `useMemo`/`categoryIds.includes(...)`, без окремого API-запиту (весь список фото вже прийшов з сервера в `page.tsx`; пагінація/API з'явиться в Сесії 5 і замінить цей клієнтський фільтр на серверний)
+- `next.config.ts`: додано `images.remotePatterns` для `res.cloudinary.com` (потрібно для майбутнього `next/image` в `Hero.tsx`, коли з'явиться реальне hero-фото)
+- `page.tsx`: `photo_categories` згортається в `Map<photoId, categoryId[]>`, звідси `galleryPhotos` з `categoryIds` для клієнтської фільтрації; секція `<section id="gallery">` обгортає `<Gallery />`
+
+**Перевірка (обидві сесії):** `npm run build`/`lint`/`test` чисті. Встановлено Playwright у scratchpad (у проєкті `node_modules` цієї залежності немає — тимчасово, тільки для перевірки, не в `package.json`), піднято `next dev`, драйвнуто headless Chromium у мобільному viewport (390×844): скріншот hero (градієнт, ім'я "Florisia", кнопка), клік "Переглянути" → скріншот після — плавний скрол відпрацював, видно активний таб "Всі", консоль без помилок (`console --errors` порожній). **Не перевірено** із реальними фото/категоріями, бо в БД зараз 0 рядків у всіх таблицях — вставляти тестові дані напряму в живий Supabase-проєкт користувача не став без прямого дозволу.
+
+**Не зроблено / далі:**
+- Досі не підтверджено, чи створено Auth-користувача адміна в Supabase (перенесено з Сесії 1/2 — питання й досі відкрите)
+- Reальна перевірка masonry/табів із кількома категоріями та фото — після появи адмінки (Сесія 10-12) або якщо користувач сам додасть тестові рядки в Supabase
+- `Metadata`/`<title>` сторінки не чіпались — це Сесія 8
+
+**Нотатки для наступної сесії:**
+- Наступний крок — Сесія 5 (Lazy loading / infinite scroll галереї). Вона замінить клієнтський `useMemo`-фільтр у `Gallery.tsx` на серверну пагінацію через новий `GET /api/photos` — це очікувана, задокументована в плані заміна, не помилка
+- Якщо буде потрібен Playwright знову для UI-перевірок — його немає в `package.json`, ставився в scratchpad ad hoc (`npm init -y && npm install playwright && npx playwright install chromium`)
