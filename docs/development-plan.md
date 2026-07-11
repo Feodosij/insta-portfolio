@@ -2,7 +2,11 @@
 
 Джерело вимог: [`../plan.md`](../plan.md). Цей файл — робочий план для розробки по сесіях + журнал прогресу. **Кожна сесія оновлює розділ "Журнал прогресу" в кінці файлу перед завершенням** (що зроблено, що залишилось, на чому зупинились, відомі проблеми).
 
-Стек: Next.js 15 (App Router, TypeScript, src/), Tailwind CSS, Supabase (Postgres + Auth), Cloudinary, Vercel.
+Стек: Next.js 15 (App Router, TypeScript, src/), Tailwind CSS, Supabase (Postgres + Auth), Cloudinary, Vercel, Vitest (unit-тести критичної логіки).
+
+## Підхід до тестування
+
+Юніт-тестами (Vitest) свідомо покриваємо лише "чисту" бізнес-логіку, яка легко ламається мовчки і важко перевіряється на око: курсорна пагінація, перерахунок `order` при drag-and-drop, diff категорій, підпис Cloudinary. Ця логіка винесена в окремі функції в `src/lib/`, щоб тестуватись без підняття Next-сервера чи БД. UI-компоненти і сторінки залишаються на ручній перевірці (вже описана в кожній сесії) — для MVP такого масштабу повне покриття компонентів не окупається.
 
 ---
 
@@ -10,7 +14,7 @@
 
 1. Прочитати розділ "Журнал прогресу" внизу — там стан на кінець попередньої сесії.
 2. Знайти першу не позначену `[ ]` сесію нижче й виконати її завдання по порядку.
-3. Перед комітом кожного завдання запускати `npm run build` (або хоча б `npm run lint`), щоб не ламати наступну сесію.
+3. Перед комітом кожного завдання запускати `npm run build` (або хоча б `npm run lint`), а для сесій із unit-тестами — ще й `npm run test`.
 4. Комітити маленькими логічними шматками (`git commit`), не одним велетенським комітом на сесію.
 5. В кінці сесії дописати запис у "Журнал прогресу": дата, що зроблено, що не встигли, нотатки/пастки для наступної сесії.
 6. Якщо в процесі роботи виявляється розбіжність з `plan.md` — не змінювати `plan.md` мовчки, зафіксувати рішення в журналі прогресу.
@@ -44,8 +48,8 @@
 
 **Завдання:**
 
-- [ ] Створити проєкт у Supabase (якщо ще не створено), записати `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` у локальний `.env.local` (не комітити)
-- [ ] Написати `supabase/schema.sql`:
+- [x] Створено проєкт у Supabase, ключі записано в `.env` (не `.env.local` — див. журнал; не комітиться, вже покрито `.gitignore`)
+- [x] Написати `supabase/schema.sql`:
 
 ```sql
 create table categories (
@@ -95,11 +99,11 @@ create policy "auth write photo_categories" on photo_categories for all using (a
 create policy "auth write site_content" on site_content for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 ```
 
-- [ ] Застосувати `schema.sql` у Supabase SQL Editor, перевірити таблиці в UI
-- [ ] Створити в Supabase Auth єдиного користувача (email+пароль флориста/SMM)
-- [ ] Реалізувати `src/lib/supabase/client.ts`, `server.ts`, `middleware.ts`, `src/middleware.ts` (стандартна SSR-схема Supabase для Next.js App Router)
-- [ ] Написати `src/lib/supabase/types.ts` з типами `Category`, `Photo`, `SiteContentKey`
-- [ ] Перевірка: тестовий Server Component робить `select` з `categories` і рендерить результат без помилок RLS
+- [x] Застосувати `schema.sql` у Supabase SQL Editor, перевірити таблиці в UI (уже було застосовано до старту сесії; перевірено запитом `select count(*)` по всіх 4 таблицях через анон-ключ — 0 рядків, RLS не блокує читання)
+- [ ] Створити в Supabase Auth єдиного користувача (email+пароль флориста/SMM) — **не перевірено цією сесією**, дивись нотатку в журналі
+- [x] Реалізувати `src/lib/supabase/client.ts`, `server.ts`, `middleware.ts`, `src/proxy.ts` (стандартна SSR-схема Supabase для Next.js App Router; файл-конвенція `src/middleware.ts` перейменована на `src/proxy.ts` — див. журнал)
+- [x] Написати `src/lib/supabase/types.ts` з типами `Category`, `Photo`, `SiteContentKey`
+- [x] Перевірка: тестовий Server Component робить `select` з `categories` і рендерить результат без помилок RLS
 
 ---
 
@@ -108,17 +112,21 @@ create policy "auth write site_content" on site_content for all using (auth.role
 **Мета:** серверний ендпоінт для підписаного завантаження фото з адмінки напряму в Cloudinary.
 
 **Файли:**
-- Створити: `src/lib/cloudinary.ts` — конфіг SDK (`cloudinary.config` з env)
+- Створити: `src/lib/cloudinary.ts` — конфіг SDK (`cloudinary.config` з env) + чиста функція `buildUploadSignature` (параметри → підпис)
+- Створити: `src/lib/cloudinary.test.ts`
 - Створити: `src/app/api/admin/cloudinary-signature/route.ts` — `POST`, повертає підпис для клієнтського upload widget/unsigned-safe upload
-- Створити: `src/app/api/admin/photos/route.ts` — `POST` (зберегти запис фото в `photos` після успішного завантаження в Cloudinary), `DELETE` (видалити з Cloudinary + з БД)
+- Створити: `src/app/api/admin/photos/route.ts` — `POST` (зберегти запис фото в `photos` після успішного завантаження в Cloudinary)
+- Створити: `src/app/api/admin/photos/[id]/route.ts` — `DELETE` (видалити з Cloudinary + з БД)
 
 **Завдання:**
 
-- [ ] Створити акаунт/фолдер у Cloudinary, записати `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` у `.env.local`
-- [ ] Реалізувати підписаний upload (`cloudinary.utils.api_sign_request`) — ендпоінт `cloudinary-signature`
-- [ ] Реалізувати `POST /api/admin/photos` — приймає `cloudinary_url`, `cloudinary_public_id`, зберігає рядок у `photos` з `order` = max+1
-- [ ] Реалізувати `DELETE /api/admin/photos/[id]` — видаляє з Cloudinary (`cloudinary.uploader.destroy`) і з БД
-- [ ] Перевірка: вручну через curl/Postman залити тестове фото, переконатись що воно з'явилось і в Cloudinary, і в таблиці `photos`
+- [x] Створено акаунт/фолдер у Cloudinary, ключі вже були в `.env` на старті сесії
+- [x] Встановити `vitest` (`npm install -D vitest`), додати скрипт `"test": "vitest run"` у `package.json`, базовий `vitest.config.ts`
+- [x] Винести генерацію підпису (`cloudinary.utils.api_sign_request`) у чисту функцію `buildUploadSignature` в `src/lib/cloudinary.ts`, ендпоінт `cloudinary-signature` лише викликає її
+- [x] Unit-тест `cloudinary.test.ts`: однакові параметри → однаковий підпис; зміна `timestamp`/`folder`/`public_id` → інший підпис (4/4 проходять)
+- [x] Реалізувати `POST /api/admin/photos` — приймає `cloudinary_url`, `cloudinary_public_id`, зберігає рядок у `photos` з `order` = max+1
+- [x] Реалізувати `DELETE /api/admin/photos/[id]` — видаляє з Cloudinary (`cloudinary.uploader.destroy`) і з БД
+- [ ] Перевірка: вручну через curl/Postman залити тестове фото — **частково**: підтверджено, що всі 3 ендпоінти віддають 401 без сесії (RLS/auth-гейт працює); повний прогін зі справжнім завантаженням у Cloudinary не зроблено, бо потребує авторизованої сесії адміна (див. журнал)
 
 ---
 
@@ -155,8 +163,9 @@ create policy "auth write site_content" on site_content for all using (auth.role
 - [ ] Masonry-розкладка через CSS columns (`columns-2 sm:columns-3 gap-3`, кожна картка `break-inside-avoid`) — без зайвих бібліотек
 - [ ] `GalleryTabs`: рендер табів з `categories` (сортування за `order`), таб "Всі" завжди першим і активний за замовчуванням
 - [ ] Фільтрація фото за обраним табом через `photo_categories`
-- [ ] Порожній стан: якщо в табі 0 фото — заглушка замість пустої сітки
 - [ ] Перевірка вручну: перемикання табів міняє набір фото без перезавантаження сторінки
+
+Порожні стани (таб без фото, сайт без жодного фото) свідомо винесені окремо в Сесію 14 — тут `Gallery.tsx` поки просто рендерить порожню сітку для табу без фото.
 
 ---
 
@@ -165,12 +174,16 @@ create policy "auth write site_content" on site_content for all using (auth.role
 **Мета:** порційне довантаження фото при скролі (100-300 фото не рендеряться одразу).
 
 **Файли:**
-- Створити: `src/app/api/photos/route.ts` — `GET` з пагінацією (`?category=&cursor=&limit=`)
+- Створити: `src/lib/pagination.ts` — чиста функція побудови курсорної сторінки (вхід: повний відсортований список/query-параметри, вихід: `{ items, nextCursor }`)
+- Створити: `src/lib/pagination.test.ts`
+- Створити: `src/app/api/photos/route.ts` — `GET` з пагінацією (`?category=&cursor=&limit=`), використовує `src/lib/pagination.ts`
 - Модифікувати: `src/components/Gallery.tsx` — інфініт скрол через `IntersectionObserver`
 
 **Завдання:**
 
-- [ ] API-роут повертає сторінку фото (курсор по `order`), відфільтровану за категорією
+- [ ] Винести курсорну логіку (обчислення межі сторінки, `nextCursor`, фільтр за категорією) у чисту функцію в `src/lib/pagination.ts`; сортування й курсор — за composite-ключем `(order, id)`, а не лише `order` (бо `order` не гарантовано унікальний — без `id` як тайбрейкера при рівних значеннях можливі дублі/пропуски фото між сторінками)
+- [ ] Unit-тест `pagination.test.ts`: перша сторінка без курсора, серединна сторінка, остання сторінка (елементів менше за `limit`), порожня категорія (0 фото), стабільний порядок при однакових значеннях `order` (перевірити саме тайбрейк по `id`)
+- [ ] API-роут повертає сторінку фото (курсор по `(order, id)`), відфільтровану за категорією
 - [ ] У `Gallery.tsx` — сентинел-елемент внизу списку, `IntersectionObserver` довантажує наступну сторінку
 - [ ] Перемикання таба скидає пагінацію і список фото
 - [ ] Перевірка вручну: наповнити тестові дані (20+ фото), проскролити — довантаження відбувається плавно, без дублів
@@ -250,10 +263,12 @@ create policy "auth write site_content" on site_content for all using (auth.role
 - Створити: `src/components/admin/PhotoUploadForm.tsx`
 - Створити: `src/components/admin/PhotoList.tsx`
 - Створити: `src/components/admin/ConfirmDeleteModal.tsx`
+- Створити: `src/app/api/admin/photos/route.ts` — `GET`, всі фото без пагінації, відсортовані за `order` (доповнює `POST` із Сесії 2 в тому ж файлі)
 
 **Завдання:**
 
-- [ ] Список фото з прев'ю (grid), джерело — `GET /api/photos` без пагінації-ліміту або окремий admin-запит
+- [ ] Реалізувати `GET /api/admin/photos` — окремий admin-запит (весь список, без ліміту), а не перевикористання публічного `GET /api/photos` з Сесії 5 (той пагінований і розрахований на публічну галерею)
+- [ ] Список фото з прев'ю (grid) на основі `GET /api/admin/photos`
 - [ ] Форма завантаження: `<input type="file" accept="image/*" capture>` (галерея або камера телефону) → підпис із Сесії 2 → прямий upload у Cloudinary → `POST /api/admin/photos`
 - [ ] Видалення: клік → модалка "Точно видалити?" → підтвердження → `DELETE /api/admin/photos/[id]`
 - [ ] Перевірка вручну з мобільного браузера (реальний телефон або DevTools device mode): завантаження і видалення працюють
@@ -267,13 +282,21 @@ create policy "auth write site_content" on site_content for all using (auth.role
 **Файли:**
 - Модифікувати: `src/components/admin/PhotoList.tsx`
 - Створити: `src/components/admin/PhotoCategoryPicker.tsx`
-- Створити: `src/app/api/admin/photos/reorder/route.ts` — `POST`, приймає новий порядок id, батч-апдейт `order`
-- Створити: `src/app/api/admin/photos/[id]/categories/route.ts` — `PUT`, замінює зв'язки в `photo_categories`
+- Створити: `src/lib/reorder.ts` — чиста функція перерахунку `order` за новим масивом id (перевикористовується в Сесії 12 для табів)
+- Створити: `src/lib/reorder.test.ts`
+- Створити: `src/lib/categoryDiff.ts` — чиста функція diff старого/нового списку `category_ids` (що додати, що видалити)
+- Створити: `src/lib/categoryDiff.test.ts`
+- Створити: `src/app/api/admin/photos/reorder/route.ts` — `POST`, приймає новий порядок id, батч-апдейт `order` через `src/lib/reorder.ts`
+- Створити: `src/app/api/admin/photos/[id]/categories/route.ts` — `PUT`, замінює зв'язки в `photo_categories` через `src/lib/categoryDiff.ts`
 
 **Завдання:**
 
 - [ ] Drag-and-drop через `@dnd-kit/core` + `@dnd-kit/sortable` (підтримує touch з коробки) — `npm install @dnd-kit/core @dnd-kit/sortable`
+- [ ] Винести перерахунок `order` за новим масивом id у чисту функцію `src/lib/reorder.ts`
+- [ ] Unit-тест `reorder.test.ts`: повний список id, частковий список, дублікати/невідомі id (не мають ламати решту порядку)
 - [ ] Чекбокси/мультиселект табів на кожному фото, збереження через `PUT .../categories`
+- [ ] Винести diff старого/нового `category_ids` у чисту функцію `src/lib/categoryDiff.ts`
+- [ ] Unit-тест `categoryDiff.test.ts`: порожній → повний список, повний → порожній, без змін, часткова заміна
 - [ ] Перевірка вручну на мобільному: перетягування пальцем міняє порядок, зміна зберігається після перезавантаження сторінки
 
 ---
@@ -291,7 +314,7 @@ create policy "auth write site_content" on site_content for all using (auth.role
 **Завдання:**
 
 - [ ] Список табів з `order`, форми додати/перейменувати/видалити
-- [ ] Drag-and-drop переставлення (той самий підхід, що в Сесії 11)
+- [ ] Drag-and-drop переставлення (той самий підхід, що в Сесії 11), reorder-ендпоінт перевикористовує `src/lib/reorder.ts` — окремого unit-тесту не треба, логіка вже покрита в Сесії 11
 - [ ] Видалення таба з фото — фото залишаються, просто втрачають зв'язок з цим табом (перевірити каскад `photo_categories`)
 - [ ] Перевірка вручну: новий таб одразу з'являється в публічній галереї після рефрешу
 
@@ -373,3 +396,35 @@ create policy "auth write site_content" on site_content for all using (auth.role
 **Нотатки для наступної сесії:**
 - Наступний крок — Сесія 1 (Supabase: схема даних і клієнт)
 - Точний текст/фото для hero і фінальний список табів-категорій ще не надані флористом/SMM (див. `plan.md`, "Відкриті питання") — до їх отримання використовувати плейсхолдери
+- 2026-07-11: у план додано unit-тестування (Vitest) критичної логіки — див. розділ "Підхід до тестування" вище. `vitest` встановлюється на початку Сесії 2 (перше місце, де з'являється чиста логіка — підпис Cloudinary). Сесії 5, 11, 12 містять додаткові unit-тести (пагінація, reorder, diff категорій). Сесія 1 не змінена — Supabase-клієнти це в основному wiring, тестувати нічого
+- 2026-07-11: перед стартом Сесії 1 знайдено й виправлено 4 неточності в самому плані сесій (без змін `plan.md`): (1) Сесія 2 — `DELETE` фото винесено в окремий файл `photos/[id]/route.ts`, бо файл-список і завдання розходились; (2) Сесія 4/14 — прибрано дублювання порожнього стану таба, лишили це виключно за Сесією 14; (3) Сесія 10 — зафіксовано окремий `GET /api/admin/photos` (весь список без пагінації) замість невизначеного "публічний ендпоінт або окремий запит"; (4) Сесія 5 — курсор пагінації уточнено як composite `(order, id)`, бо `order` сам по собі не унікальний
+
+### Session 1+2 — 2026-07-11
+
+**Важлива розбіжність із очікуваннями плану (не з `plan.md`, а з середовища):** локальний `next` у `node_modules` — це нестандартна збірка Next.js 16.2.10, де файл-конвенція `middleware.ts` перейменована на **`proxy.ts`** (експортована функція називається `proxy`, не `middleware`; `matcher` — без змін). `AGENTS.md` прямо наказує звіряти такі речі з `node_modules/next/dist/docs/` перед кодингом — так і зроблено (`docs/01-app/01-getting-started/16-proxy.md`, `docs/01-app/02-guides/authentication.md`). Тому:
+- Helper з чистою логікою оновлення сесії лишився `src/lib/supabase/middleware.ts` (назва файлу не є Next-конвенцією, тому не перейменовувався)
+- Спеціальний файл-конвенція Next створено як `src/proxy.ts` (замість `src/middleware.ts` з плану), він імпортує helper і експортує `proxy()` + `config.matcher`
+- Перевірено в `next dev`: лог запиту показує `proxy.ts: Nms`, тобто Next дійсно підхопив файл
+
+**Зроблено (Сесія 1):**
+- Виявлено, що `.env` (не `.env.local`, як писав план) вже містив робочі ключі Supabase + Cloudinary, а `supabase/schema.sql` вже існував і **точно відповідав** тексту з плану — схему хтось (користувач) уже застосував заздалегідь. Перевірено `select count(*)` через анон-ключ по всіх 4 таблицях (`categories`, `photos`, `photo_categories`, `site_content`) — усі повернули `0`, RLS публічного читання працює
+- Створено `src/lib/supabase/client.ts` (браузерний клієнт), `server.ts` (серверний, cookies через `next/headers`, generic `Database` тип), `middleware.ts` (helper `updateSession`), `src/proxy.ts` (виклик helper'а)
+- Створено `src/lib/supabase/types.ts` — `Category`, `Photo`, `PhotoCategory`, `SiteContent(Key)` + generic `Database` для типізації `supabase-js`. Важлива деталь: щоб `.select("колонка")` коректно типізувався (а не виводився як `never`), `Database` **обов'язково** повинен містити `__InternalSupabase.PostgrestVersion` і порожні `Views`/`Functions`/`Enums`/`CompositeTypes` на рівні схеми — самих `Tables` з `Row/Insert/Update/Relationships` недостатньо для типового виводу postgrest-js v2. Відтворено мінімальним репро й перевірено виправлення окремим `tsc --noEmit` до застосування в проєкті
+- Перевірка з плану ("тестовий Server Component робить `select` з `categories`") виконана: тимчасово додано `await supabase.from("categories").select("*")` у `page.tsx`, піднято `next dev`, отримано `200` і `categories: [] error: null` в логах, після чого зміну відкачено — `page.tsx` лишився в стані зі сесії 0
+
+**Зроблено (Сесія 2):**
+- Встановлено `vitest` (`^4.1.10`), додано скрипт `test`, `vitest.config.ts` (`environment: "node"`)
+- `src/lib/cloudinary.ts`: `cloudinary.config()` з env + чиста `buildUploadSignature(paramsToSign, apiSecret?)` через `cloudinary.utils.api_sign_request`
+- `cloudinary.test.ts`: 4 тести (стабільність підпису; зміна `timestamp`/`folder`/`public_id` → інший підпис) — усі проходять
+- `POST /api/admin/cloudinary-signature`, `POST /api/admin/photos`, `DELETE /api/admin/photos/[id]` — усі три вимагають активної Supabase-сесії (`supabase.auth.getUser()` через cookie-клієнт із Сесії 1); без сесії повертають `401`. `POST /api/admin/photos` рахує `order` як `max+1`; `DELETE` спершу читає `cloudinary_public_id`, викликає `cloudinary.uploader.destroy`, потім видаляє рядок
+- `npm run build` і `npm run lint` — чисто; `npm run dev` вручну: усі три ендпоінти без cookie повертають `401` (перевірено curl'ом)
+
+**Не зроблено / далі:**
+- Створення єдиного Auth-користувача в Supabase (email+пароль флориста/SMM) — план просив зробити це в Сесії 1, але не підтверджено в цій сесії: перевірка списку користувачів через service-role ключ була заблокована класифікатором дозволів (обробка PII — email/id реальних користувачів), тож не запитувалось і в користувача. **Наступній сесії потрібно уточнити в користувача, чи створено цього користувача**
+- Повний ручний тест Сесії 2 "залити тестове фото через curl, побачити в Cloudinary і в `photos`" виконано лише частково: підтверджено `401` без сесії (сам гейт і RLS-логіка коректні), але **не** підтверджено успішний інсерт з реальною авторизованою сесією — для цього об'єктивно потрібен вхід (Сесія 9 ще не існує) або пароль адміна, який асистент не запитував. Це стосується самої послідовності сесій у плані: Сесія 2 передбачає ручну перевірку через HTTP, яка фактично залежить від автентифікації з Сесії 9. Рекомендація: коли Сесія 9 буде готова, повернутись і прогнати цей ручний тест end-to-end
+- `supabase/schema.sql` і `.env` вже існували на диску до старту цієї сесії (не створювались асистентом з нуля) — лишено без змін, оскільки повністю відповідають плану
+
+**Нотатки для наступної сесії:**
+- Наступний крок — Сесія 3 (Головна сторінка `/`)
+- Пам'ятати про `src/proxy.ts` замість `src/middleware.ts` у всіх майбутніх сесіях, які згадують middleware (зокрема Сесія 9 — захист `/admin/*`)
+- При розширенні `src/lib/supabase/types.ts` новими таблицями не забувати `Relationships: []` на кожній таблиці — інакше `never`-тип на вибіркових `select()`
