@@ -237,7 +237,7 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 ---
 
-## Сесія 9 — Адмінка: автентифікація
+## Сесія 9 — Адмінка: автентифікація ✅
 
 **Мета:** захищений вхід у `/admin` через Supabase Auth (email+пароль).
 
@@ -248,13 +248,13 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] Форма логіну (email/пароль) через `supabase.auth.signInWithPassword`
-- [ ] Кнопка логауту (`supabase.auth.signOut`)
-- [ ] Перевірка вручну: без сесії `/admin` редіректить на `/admin/login`; після логіну — доступ є
+- [x] Форма логіну (email/пароль) через `supabase.auth.signInWithPassword`
+- [x] Кнопка логауту (`supabase.auth.signOut`) — винесена в окремий клієнтський `src/components/admin/LogoutButton.tsx` (не було у списку файлів сесії, але необхідна: `layout.tsx` — Server Component, обробник кліку не може жити в ньому напряму)
+- [x] Перевірка вручну: без сесії `/admin` редіректить на `/admin/login`; після логіну — доступ є — **частково**: редірект без сесії підтверджено (curl → `307` на `/admin/login`; Playwright → фінальний URL `/admin/login`), форма логіну рендериться і коректно показує помилку на невірні креденшели (`Невірний email або пароль`, скріншот 390×844, консоль без незапланованих помилок — лише очікуваний мережевий `400` від Supabase на невірний пароль). Успішний вхід із реальними креденшелами адміна **не** перевірявся — асистент навмисно не має і не запитував пароль користувача (той самий принцип, що в Сесії 2); просимо користувача підтвердити вручну: увійти на `/admin/login`, переконатись, що потрапляє на `/admin/photos` і бачить кнопку "Вийти"
 
 ---
 
-## Сесія 10 — Адмінка: керування фото
+## Сесія 10 — Адмінка: керування фото ✅
 
 **Мета:** список фото, завантаження нових, видалення з підтвердженням.
 
@@ -267,11 +267,11 @@ create policy "auth write site_content" on site_content for all using (auth.role
 
 **Завдання:**
 
-- [ ] Реалізувати `GET /api/admin/photos` — окремий admin-запит (весь список, без ліміту), а не перевикористання публічного `GET /api/photos` з Сесії 5 (той пагінований і розрахований на публічну галерею)
-- [ ] Список фото з прев'ю (grid) на основі `GET /api/admin/photos`
-- [ ] Форма завантаження: `<input type="file" accept="image/*" capture>` (галерея або камера телефону) → підпис із Сесії 2 → прямий upload у Cloudinary → `POST /api/admin/photos`
-- [ ] Видалення: клік → модалка "Точно видалити?" → підтвердження → `DELETE /api/admin/photos/[id]`
-- [ ] Перевірка вручну з мобільного браузера (реальний телефон або DevTools device mode): завантаження і видалення працюють
+- [x] Реалізувати `GET /api/admin/photos` — окремий admin-запит (весь список, без ліміту), а не перевикористання публічного `GET /api/photos` з Сесії 5 (той пагінований і розрахований на публічну галерею)
+- [x] Список фото з прев'ю (grid) на основі `GET /api/admin/photos`
+- [x] Форма завантаження: `<input type="file" accept="image/*" capture>` (галерея або камера телефону) → підпис із Сесії 2 → прямий upload у Cloudinary → `POST /api/admin/photos`
+- [x] Видалення: клік → модалка "Точно видалити?" → підтвердження → `DELETE /api/admin/photos/[id]`
+- [ ] Перевірка вручну з мобільного браузера (реальний телефон або DevTools device mode): завантаження і видалення працюють — **не виконано**: весь потік (upload/delete) вимагає авторизованої сесії адміна, а сесія в цій сесії плану не перевірялась із реальними креденшелами (див. Сесію 9 вище). `GET /api/admin/photos` без сесії підтверджено як `401` (curl). Коли користувач залогіниться вручну, варто одразу спробувати завантажити й видалити тестове фото — саме той наскрізний прогін, який лишався відкритим із Сесії 2
 
 ---
 
@@ -519,3 +519,35 @@ create policy "auth write site_content" on site_content for all using (auth.role
 - Наступний крок — Сесія 9 (Адмінка: автентифікація)
 - Пам'ятати про `src/proxy.ts` замість `src/middleware.ts` (Сесія 1) — Сесія 9 явно чіпає захист `/admin/*` через нього
 - `site_content` у БД користувача досі 0 рядків — Сесії 9-13 (адмінка) це й виправлять; до того часу Hero/ServicesSection/OG-метадані працюють на фолбеках, це очікувано
+
+### Session 9+10 — 2026-07-11
+
+**Зроблено (Сесія 9):**
+- `src/lib/supabase/middleware.ts`: `updateSession()` тепер повертає `{ response, user }` замість самого `response` — вона вже й так робила `supabase.auth.getUser()` для рефрешу токена, тож `proxy.ts` перевикористовує цей самий результат для гейта `/admin/*`, а не робить другий мережевий виклик до Supabase на кожен запит
+- `src/proxy.ts`: якщо шлях починається з `/admin` і це не `/admin/login`, і `user` відсутній — `NextResponse.redirect` на `/admin/login`. Матчер (`config.matcher`) не чіпався — `/admin/*` під нього й так підпадає
+- `src/app/admin/login/page.tsx` (Client Component) — форма email/пароль, `supabase.auth.signInWithPassword` через браузерний клієнт із Сесії 1; на успіх — `router.replace("/admin/photos")` + `router.refresh()` (щоб Server Components перечитали нову cookie-сесію); на помилку — повідомлення "Невірний email або пароль" без деталей із Supabase (щоб не розкривати, чи існує акаунт)
+- `src/app/admin/(protected)/layout.tsx` (Server Component) — `supabase.auth.getUser()`, `redirect("/admin/login")` якщо немає користувача; обгортка з хедером (назва + кнопка виходу) навколо `children`. Це другий, "secure" рівень перевірки поверх "optimistic" перевірки в proxy — обидва рекомендовані офіційною доків-сторінкою автентифікації (`node_modules/next/dist/docs/.../authentication.md`, розділ "Optimistic vs Secure checks")
+- `src/components/admin/LogoutButton.tsx` (Client Component, не було в списку файлів плану) — `supabase.auth.signOut()` + редірект на `/admin/login`. Додано, бо `layout.tsx` — Server Component і не може мати `onClick` напряму
+
+**Зроблено (Сесія 10):**
+- `GET /api/admin/photos` дописано в існуючий `src/app/api/admin/photos/route.ts` (поруч із `POST` із Сесії 2) — той самий гейт `supabase.auth.getUser()`, повертає `id`+`cloudinary_url` усіх фото за `order`, без ліміту
+- `src/components/admin/PhotoUploadForm.tsx` — `<input type="file" accept="image/*" capture>` схований під стилізованим `<label>` (кнопка-пігулка); на вибір файлу: `POST /api/admin/cloudinary-signature` → прямий `POST` у `https://api.cloudinary.com/v1_1/{cloudName}/image/upload` з `FormData` (лише `file`, `api_key`, `timestamp`, `signature`, `folder` — рівно ті поля, що підписані `buildUploadSignature`, жодних зайвих, інакше Cloudinary відхилить підпис) → `POST /api/admin/photos` зі `secure_url`/`public_id` → `onUploaded(photo)` піднімає новий рядок нагору без перезавантаження сторінки
+- `src/components/admin/PhotoList.tsx` — сітка `grid-cols-2 sm:grid-cols-4` з прев'ю (`<img>`, та сама причина, що й у `PhotoCard`/`PhotoViewer` — немає збережених `width`/`height`), кнопка "Видалити" в кутку кожної картки **завжди видима** (без `hover`), бо основний сценарій використання — телефон, де hover не працює
+- `src/components/admin/ConfirmDeleteModal.tsx` — модалка з прев'ю фото, текстом підтвердження, `DELETE /api/admin/photos/[id]` на підтвердження
+- `src/app/admin/(protected)/photos/page.tsx` (Client Component, не Server) — тримає весь стан `photos[]` сам, підвантажує через `GET /api/admin/photos` в `useEffect`, передає `onUploaded`/`onDeleted` колбеки в дочірні компоненти. Свідомо не окремий `PhotoManager.tsx` (якого не було в списку файлів сесії) — сторінка й так по суті єдиний тонкий контейнер стану, зайва обгортка була б зайвою абстракцією
+
+**Перевірка (обидві сесії):** `npm run build`/`lint`/`test` чисті (11/11, нової чистої логіки немає — auth/upload/delete це wiring, а не бізнес-логіка з "Підходу до тестування"). `next dev` + `curl`/Playwright (390×844):
+- `curl /admin/photos` без cookie → `307` на `/admin/login` (proxy-редірект працює)
+- `curl /admin/login` → `200`
+- `curl /api/admin/photos` без cookie → `401 {"error":"Unauthorized"}`
+- `curl /` (публічна) → досі `200`, не зачеплена захистом
+- Playwright: відвідування `/admin/photos` без сесії довозить на `/admin/login` (перевірено фінальним `page.url()`); скріншот форми логіну на мобільному viewport; підстановка невірних креденшелів → на екрані з'являється "Невірний email або пароль", консоль без непередбачених помилок (лише очікуваний мережевий `400` від Supabase)
+
+**Не зроблено / далі — головний відкритий пункт:**
+- **Повний наскрізний прогін з реальним логіном (успішний вхід → `/admin/photos` → завантаження фото → видалення фото) не виконано.** Асистент не має і навмисно не запитував пароль адміна (email/пароль — чутливі дані, той самий принцип, що в Сесії 2 і Сесії 3+4 — не чіпати живі облікові дані/контент користувача без прямого дозволу). Це найважливіше, що лишилось перевірити: **користувачу варто самому зайти на `/admin/login` з реальними креденшелами, переконатись, що потрапляє на `/admin/photos`, бачить кнопку "Вийти", і спробувати завантажити й видалити тестове фото.** Якщо щось піде не так на цьому кроці — потрібна ще одна сесія на фікс, перш ніж рухатись до Сесії 11
+- Захист через `redirect()` у `(protected)/layout.tsx` — стандартний Next-патерн, але Next попереджає, що layout не перерендерюється на клієнтську навігацію (partial rendering); основний захист усе одно на рівні `proxy.ts`, який працює на кожен запит, тож дірки тут немає, просто варто пам'ятати цю деталь, якщо колись перевести перевірку кудись глибше
+
+**Нотатки для наступної сесії:**
+- Наступний крок — Сесія 11 (Адмінка: порядок фото і прив'язка до табів), **але лише після** ручного підтвердження від користувача, що логін/upload/delete з Сесії 9-10 реально працюють з його креденшелами
+- `src/app/admin/(protected)/photos/page.tsx` зараз єдина сторінка в захищеній групі; Сесія 12 додасть `tabs/page.tsx`, Сесія 13 — `content/page.tsx` в ту саму групу `(protected)`, обидві автоматично отримають хедер/логаут-кнопку з `layout.tsx` без додаткових змін
+- Якщо в майбутньому знадобиться множинний upload (зараз — по одному файлу за раз, свідомо, без цього в плані не було потреби) — доведеться переробити `PhotoUploadForm` на цикл або `Promise.all` по `event.target.files`
