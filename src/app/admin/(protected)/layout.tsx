@@ -30,6 +30,9 @@ export default async function ProtectedAdminLayout({
             <Link href="/admin/tabs" className="hover:text-zinc-900 dark:hover:text-zinc-50">
               Таби
             </Link>
+            <Link href="/admin/content" className="hover:text-zinc-900 dark:hover:text-zinc-50">
+              Текст
+            </Link>
           </nav>
         </div>
         <LogoutButton />
